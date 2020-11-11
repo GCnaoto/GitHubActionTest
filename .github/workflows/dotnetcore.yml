@@ -3,20 +3,15 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Setup NuGet
-      uses: NuGet/setup-nuget@v1.0.2
-      with:
-        nuget-api-key: ${{ secrets.NUGET_API_KEY }}
-        nuget-version: latest 
     - name: Setup .NET Core SDK
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: 3.1.101
+    - name: Add TestPack Source
+      run: dotnet nuget add source https://nuget.pkg.github.com/GCnaoto/index.json -n github -u GCnaoto -p GH_TOKEN
     - name: Build
       run: dotnet build --configuration Release
     - name: Pack
-      run: dotnet pack --output .\artifacts --configuration Release
-    - name: Add TestPack Source
-      run: nuget sources Add -Name "TestPack" -Source https://nuget.pkg.github.com/GCnaoto/index.json -UserName GCnaoto -Password ${{ secrets.GITHUB_TOKEN }}
+      run: dotnet pack --configuration Release
     - name: Publish
-      run: nuget push ".\artifacts\" -Source "TestPack" -SkipDuplicate 
+      run: dotnet nuget push "bin/Release/GitHubActionTest.1.0.0.nupkg" --source "github"
