@@ -26,10 +26,27 @@ jobs:
         git checkout -b ${{ github.event.inputs.release_branch_name }}
         git push origin ${{ github.event.inputs.release_branch_name }}
 
+    # Fetch all remote branches and list them
+    - name: Fetch all branches and list
+      run: |
+        git fetch --all
+        git branch -a
+
     # Get the list of merged PRs
     - name: Get merged PRs
       run: |
-        PR_LIST=$(git log --merges --pretty=format:"%s" origin/develop --not origin/main)
+        set -e
+        echo "Fetching logs for branch comparisons..."
+        # Check if main or master branch exists
+        if git show-ref --verify --quiet refs/heads/main; then
+          MAIN_BRANCH="origin/main"
+        elif git show-ref --verify --quiet refs/heads/master; then
+          MAIN_BRANCH="origin/master"
+        else
+          echo "No main or master branch found."
+          exit 1
+        fi
+        PR_LIST=$(git log --merges --pretty=format:"%s" origin/develop --not $MAIN_BRANCH)
         echo "PR_LIST=${PR_LIST}" >> $GITHUB_ENV
 
     # Create a Pull Request from release branch to main
