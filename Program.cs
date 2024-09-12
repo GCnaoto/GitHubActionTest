@@ -6,7 +6,7 @@ namespace GitHubActionTest
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!Action!");
+            Console.WriteLine("Hello World!Action!2");
         }
     }
 }
