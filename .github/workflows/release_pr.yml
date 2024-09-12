@@ -1,0 +1,57 @@
+name: Create Release Branch and PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_branch_name:
+        description: 'The name of the release branch'
+        required: true
+
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout the repository
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Create a new release branch from develop
+    - name: Create release branch
+      run: |
+        git config --global user.name "${{ github.actor }}"
+        git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+        git checkout develop
+        git pull origin develop
+        git checkout -b ${{ github.event.inputs.release_branch_name }}
+        git push origin ${{ github.event.inputs.release_branch_name }}
+
+    # Get the list of merged PRs
+    - name: Get merged PRs
+      run: |
+        PR_LIST=$(git log --merges --pretty=format:"%s" origin/develop --not origin/main)
+        echo "PR_LIST=${PR_LIST}" >> $GITHUB_ENV
+
+    # Create a Pull Request from release branch to main
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        base: main
+        head: ${{ github.event.inputs.release_branch_name }}
+        title: 'Release: ${{ github.event.inputs.release_branch_name }}'
+        body: |
+          # 概要
+          ${{ github.event.inputs.release_branch_name }}リリースブランチ - {{ steps.date.outputs.current_date }}
+          
+          # チケットへのリンク
+          各PRに記載されているRedmineへのリンク
+
+          # 変更点
+          プルリクエスト一覧
+          ${{ env.PR_LIST }}
+          
+    # Step to get current date
+    - name: Get current date
+      id: date
+      run: echo "current_date=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
