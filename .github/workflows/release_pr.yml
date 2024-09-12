@@ -37,16 +37,7 @@ jobs:
       run: |
         set -e
         echo "Fetching logs for branch comparisons..."
-        # Check if main or master branch exists
-        if git show-ref --verify --quiet refs/heads/main; then
-          MAIN_BRANCH="origin/main"
-        elif git show-ref --verify --quiet refs/heads/master; then
-          MAIN_BRANCH="origin/master"
-        else
-          echo "No main or master branch found."
-          exit 1
-        fi
-        PR_LIST=$(git log --merges --pretty=format:"%s" origin/develop --not $MAIN_BRANCH)
+        PR_LIST=$(git log --merges --pretty=format:"%s" origin/develop --not "origin/master")
         echo "PR_LIST=${PR_LIST}" >> $GITHUB_ENV
 
     # Create a Pull Request from release branch to main
