@@ -37,7 +37,7 @@ jobs:
       run: |
         set -e
         echo "Fetching logs for branch comparisons..."
-        PR_LIST=$(git log --merges --pretty=format:"%s" origin/develop --not "origin/master")
+        PR_LIST=$(git log --merges --pretty=format:"%s" origin/develop --not origin/main)
         echo "PR_LIST=${PR_LIST}" >> $GITHUB_ENV
 
     # Create a Pull Request from release branch to main
