@@ -1,65 +1,69 @@
 name: Create Release Branch and PR
 
 on:
-  workflow_dispatch:
-    inputs:
-      release_branch_name:
-        description: 'The name of the release branch'
-        required: true
+  push:
+    branches:
+      - 'release/*'  # リリースブランチが作成されたときにトリガー
 
 jobs:
   create-release-pr:
     runs-on: ubuntu-latest
 
     steps:
-    # Checkout the repository
-    - name: Checkout code
+    # リポジトリのチェックアウト
+    - name: Checkout repository
       uses: actions/checkout@v3
 
-    # Create a new release branch from develop
-    - name: Create release branch
-      run: |
-        git config --global user.name "${{ github.actor }}"
-        git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-        git checkout develop
-        git pull origin develop
-        git checkout -b ${{ github.event.inputs.release_branch_name }}
-        git push origin ${{ github.event.inputs.release_branch_name }}
+    # リリースブランチをmainブランチにマージするPRを作成するため、リモートを更新
+    - name: Fetch all branches
+      run: git fetch --all
 
-    # Fetch all remote branches and list them
-    - name: Fetch all branches and list
-      run: |
-        git fetch --all
-        git branch -a
+    # 現在のリリースブランチ名を取得
+    - name: Get release branch name
+      run: echo "RELEASE_BRANCH=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
 
-    # Get the list of merged PRs
+    # マージされていないPRを取得
     - name: Get merged PRs
+      id: get_prs
       run: |
-        set -e
-        echo "Fetching logs for branch comparisons..."
-        PR_LIST=$(git log --merges --pretty=format:"%s" origin/develop --not origin/main)
+        PR_LIST=$(git log --merges --pretty=format:"%s" origin/main..origin/${RELEASE_BRANCH})
         echo "PR_LIST=${PR_LIST}" >> $GITHUB_ENV
 
-    # Create a Pull Request from release branch to main
+    # 各PRの説明にあるチケットURLを抽出
+    - name: Extract ticket URLs from PRs
+      id: extract_tickets
+      run: |
+        TICKET_URLS=""
+        for pr in $(git log --merges --pretty=format:"%b" origin/main..origin/${RELEASE_BRANCH}); do
+          if [[ $pr =~ (https?://[^\ ]+) ]]; then
+            TICKET_URLS+="${BASH_REMATCH[1]}\n"
+          fi
+        done
+        echo "TICKET_URLS=${TICKET_URLS}" >> $GITHUB_ENV
+
+    # 日付を取得
+    - name: Get current date
+      id: date
+      run: echo "current_date=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+
+    # PRを作成
     - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v7
+      uses: peter-evans/create-pull-request@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         base: main
-        branch: ${{ github.event.inputs.release_branch_name }}
-        title: 'Release: ${{ github.event.inputs.release_branch_name }}'
+        head: ${{ env.RELEASE_BRANCH }}
+        title: 'Release: ${{ env.RELEASE_BRANCH }}'
         body: |
           # 概要
-          ${{ github.event.inputs.release_branch_name }}リリースブランチ - {{ steps.date.outputs.current_date }}
+          ${{ steps.date.outputs.current_date }}リリースブランチ
           
           # チケットへのリンク
-          各PRに記載されているRedmineへのリンク
-
+          {{ env.TICKET_URLS }}
+          
           # 変更点
           プルリクエスト一覧
           ${{ env.PR_LIST }}
-          
-    # Step to get current date
     - name: Get current date
       id: date
       run: echo "current_date=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
