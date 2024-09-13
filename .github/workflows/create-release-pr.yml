@@ -2,7 +2,7 @@ name: Create Release PR
 on:
   push:
     branches:
-      - 'release/*'  # リリースブランチが作成されたらトリガー
+      - 'release*'  # リリースブランチが作成されたらトリガー
 
 jobs:
   create-release-pr:
