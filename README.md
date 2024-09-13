@@ -1,2 +1,2 @@
 # GitHubActionTest
-Net Coreアクションテスト
+Net Coreアクションテスト!
