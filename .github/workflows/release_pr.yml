@@ -26,7 +26,7 @@ jobs:
     - name: Get merged PRs
       id: get_prs
       run: |
-        PR_LIST=$(git log --merges --pretty=format:"%s" origin/main..origin/${RELEASE_BRANCH})
+        PR_LIST=$(git log --merges --pretty=format:"%s" origin/${RELEASE_BRANCH}  --not origin/main)
         echo "PR_LIST=${PR_LIST}" >> $GITHUB_ENV
 
     # 各PRの説明にあるチケットURLを抽出
@@ -34,7 +34,7 @@ jobs:
       id: extract_tickets
       run: |
         TICKET_URLS=""
-        for pr in $(git log --merges --pretty=format:"%b" origin/main..origin/${RELEASE_BRANCH}); do
+        for pr in $(git log --merges --pretty=format:"%s" origin/${RELEASE_BRANCH}  --not origin/main); do
           if [[ $pr =~ (https?://[^\ ]+) ]]; then
             TICKET_URLS+="${BASH_REMATCH[1]}\n"
           fi
@@ -48,11 +48,10 @@ jobs:
 
     # PRを作成
     - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v5
+      uses: peter-evans/create-pull-request@v7
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         base: main
-        head: ${{ env.RELEASE_BRANCH }}
         title: 'Release: ${{ env.RELEASE_BRANCH }}'
         body: |
           # 概要
