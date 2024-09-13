@@ -11,6 +11,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Set up GitHub CLI
+        run: |
+          sudo apt-get install gh
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}  # GitHub PAT を環境変数に設定
+
       - name: Get current date
         id: date
         run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
@@ -24,19 +30,14 @@ jobs:
           prs=$(gh pr list --base main --head ${{ env.branch_name }} --json number,title,body,htmlUrl)
           echo "$prs" > prs.json
           echo "prs=$(jq -r '.[] | "- \(.htmlUrl)"' prs.json)" >> $GITHUB_ENV
-
-      - name: Extract ticket URLs from PR descriptions
-        id: ticket-list
-        run: |
-          tickets=$(jq -r '.[] | .body | capture("(https?://[\\w./-]+)")? | select(. != null) | .string' prs.json | sort -u)
-          echo "$tickets" > tickets.txt
-          echo "tickets=$(cat tickets.txt | sed 's/^/- /')" >> $GITHUB_ENV
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}  # ここにもトークンを設定
 
       - name: Create release PR
         uses: actions/github-script@v6
         with:
           script: |
-            const { date, branch_name, prs, tickets } = process.env;
+            const { date, branch_name, prs } = process.env;
             github.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -46,9 +47,6 @@ jobs:
               body: `
               # 概要
               ${date} リリースブランチ
-
-              # チケットへのリンク
-              ${tickets}
 
               # 変更点
               ${prs}
