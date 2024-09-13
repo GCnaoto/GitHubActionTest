@@ -42,11 +42,16 @@ jobs:
 
     # Create a Pull Request from release branch to main
     - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v7
+      
+      
+    # Create a Pull Request from release branch to main
+    - name: Create Pull Request
       uses: peter-evans/create-pull-request@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         base: main
-        head: ${{ github.event.inputs.release_branch_name }}
+        branch: ${{ github.event.inputs.release_branch_name }}
         title: 'Release: ${{ github.event.inputs.release_branch_name }}'
         body: |
           # 概要
