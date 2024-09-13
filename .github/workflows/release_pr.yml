@@ -1,4 +1,4 @@
-name: Create Release Branch and PR
+name: リリースPR作成
 
 on:
   push:
@@ -16,9 +16,7 @@ jobs:
 
     # リリースブランチをmainブランチにマージするPRを作成するため、リモートを更新
     - name: Fetch all branches
-      run: |
-        git fetch --all
-        git branch -a
+      run: git fetch --all
 
     # 現在のリリースブランチ名を取得
     - name: Get release branch name
@@ -50,10 +48,10 @@ jobs:
 
     # PRを作成
     - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v7
+      uses: peter-evans/create-pull-request@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        base: main
+        base: origin/main
         branch: ${{ env.RELEASE_BRANCH }}
         title: 'Release: ${{ env.RELEASE_BRANCH }}'
         body: |
@@ -61,7 +59,7 @@ jobs:
           ${{ steps.date.outputs.current_date }}リリースブランチ
           
           # チケットへのリンク
-          {{ env.TICKET_URLS }}
+          ${{ env.TICKET_URLS }}
           
           # 変更点
           プルリクエスト一覧
