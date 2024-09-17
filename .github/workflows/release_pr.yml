@@ -51,8 +51,8 @@ jobs:
       uses: peter-evans/create-pull-request@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        base: main
-        branch: ${{ env.RELEASE_BRANCH }}
+        base: ${{ env.RELEASE_BRANCH }}
+        branch: main
         title: 'Release: ${{ env.RELEASE_BRANCH }}'
         body: |
           # 概要
