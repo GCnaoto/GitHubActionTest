@@ -26,7 +26,7 @@ jobs:
     - name: Get merged PRs
       id: get_prs
       run: |
-        PR_LIST=$(git log --merges --pretty=format:"%s" origin/develop --not origin/main)
+        PR_LIST=$(git log --merges --pretty=format:"%s" origin/main..origin/develop)
         echo "PR_LIST=${PR_LIST}" >> $GITHUB_ENV
 
     # 各PRの説明にあるチケットURLを抽出
@@ -34,7 +34,7 @@ jobs:
       id: extract_tickets
       run: |
         TICKET_URLS=""
-        for pr in $(git log --merges --pretty=format:"%s" origin/develop --not origin/main); do
+        for pr in $(git log --merges --pretty=format:"%s" origin/main..origin/develop); do
           if [[ $pr =~ (https?://[^\ ]+) ]]; then
             TICKET_URLS+="${BASH_REMATCH[1]}\n"
           fi
