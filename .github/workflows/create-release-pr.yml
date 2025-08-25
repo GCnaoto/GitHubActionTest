@@ -37,17 +37,18 @@ jobs:
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh jq
 
-      # developにマージ済みのPR一覧を取得
-      - name: Collect merged PR list
-        id: prs
-        env:
-          GH_TOKEN: ${{ github.token }}
+      # 前回リリースタグを自動判別
+      - name: Get previous release tag
+        id: prev_tag
         run: |
-          prs=$(gh pr list \
-            --state merged \
-            --base develop \
-            --json title,number,url \
-            --jq '.[] | "- \(.title) (#\(.number)) \(.url)"')
+          PREV_TAG=$(git tag --sort=-creatordate | grep '^v' | tail -2 | head -1)
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      # 前回リリースタグからdevelopのHEADまでのマージPR一覧を取得
+      - name: Collect merged PR list between tags
+        id: prs
+        run: |
+          prs=$(git log --merges --pretty=format:"%s" ${{ steps.prev_tag.outputs.prev_tag }}..origin/develop | grep -E 'Merge pull request' | sed -E 's/Merge pull request #(\d+) from .*/- PR #\1/')
           echo "prs<<EOF" >> $GITHUB_OUTPUT
           echo "$prs" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
