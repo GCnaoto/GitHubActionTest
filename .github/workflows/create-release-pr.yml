@@ -51,7 +51,7 @@ jobs:
       - name: Collect merged PR list from main to release branch
         id: prs
         run: |
-          prs=$(git log --merges --pretty=format:"%s" origin/main..release/${{ steps.date.outputs.date }} | grep -E 'Merge pull request' | sed -E 's/Merge pull request #(\d+) from .*/- PR #\1/')
+          prs=$(git log --merges --pretty=format:"%s" origin/main..release/${{ steps.date.outputs.date }} | grep -E 'Merge pull request' | sed -E 's/Merge pull request #([0-9]+) from .*/#\1/')
           echo "prs<<EOF" >> $GITHUB_OUTPUT
           echo "$prs" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -95,12 +95,7 @@ jobs:
           # PR番号リストからURLリンク付きリストを生成
           $prList = ""
           foreach ($line in "${{ steps.prs.outputs.prs }}".Split("`n")) {
-            if ($line -match 'Merge pull request #(\d+)') {
-              $prNum = $matches[1]
-              $prUrl = "https://github.com/${{ github.repository }}/pull/$prNum"
-              $prList += "* $prUrl`n"
-            }
-            elseif ($line -match '#(\d+)') {
+            if ($line -match '#(\d+)') {
               $prNum = $matches[1]
               $prUrl = "https://github.com/${{ github.repository }}/pull/$prNum"
               $prList += "* $prUrl`n"
