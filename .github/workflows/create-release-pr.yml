@@ -51,6 +51,12 @@ jobs:
           echo "prs<<EOF" >> $GITHUB_OUTPUT
           echo "$prs" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+      
+      # PRのマージ後の状態を取得
+      - name: Fetch merged PR state
+        run: |
+          git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge origin/main
+          git checkout -qf FETCH_HEAD
 
       # 発行対象プロジェクト一覧を判定し環境変数に格納
       - name: Determine build targets
