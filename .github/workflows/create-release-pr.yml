@@ -37,11 +37,14 @@ jobs:
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh jq
 
+      - name: Fetch tags
+        run: git fetch --tags
+        
       # 前回リリースタグを自動判別
       - name: Get previous release tag
         id: prev_tag
         run: |
-          PREV_TAG=$(git tag --sort=-creatordate | grep '^v' | tail -2 | head -1)
+          PREV_TAG=$(git tag --sort=-creatordate | grep '^release_' | tail -2 | head -1)
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
       # 前回リリースタグからdevelopのHEADまでのマージPR一覧を取得
