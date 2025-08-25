@@ -1,54 +1,96 @@
-name: Create Release PR
+name: Create Release Branch and PR
+
 on:
-  push:
-    branches:
-      - 'release*'  # リリースブランチが作成されたらトリガー
+  workflow_dispatch: # 手動実行のみ
 
 jobs:
   create-release-pr:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      # リポジトリをチェックアウト
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up GitHub CLI
+      # Gitユーザー情報を設定（PR作成やブランチ操作用）
+      - name: Set up Git
         run: |
-          sudo apt-get install gh
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}  # GitHub PAT を環境変数に設定
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Get current date
+      # 日付情報からリリースブランチ名・PRタイトル用文字列を生成
+      - name: Generate branch name
         id: date
-        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
-
-      - name: Get release branch name
-        run: echo "branch_name=${GITHUB_REF##*/}" >> $GITHUB_ENV
-
-      - name: Get list of PRs to be merged
-        id: pr-list
         run: |
-          prs=$(gh pr list --base main --head ${{ env.branch_name }} --json number,title,body,htmlUrl)
-          echo "$prs" > prs.json
-          echo "prs=$(jq -r '.[] | "- \(.htmlUrl)"' prs.json)" >> $GITHUB_ENV
+          echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+          echo "year_month=$(date +'%Y年%m月')" >> $GITHUB_OUTPUT
+
+      # developからリリースブランチを作成してpush
+      - name: Create release branch
+        run: |
+          git fetch origin
+          git checkout develop
+          git pull
+          git checkout -b release/${{ steps.date.outputs.date }}
+          git push origin release/${{ steps.date.outputs.date }}
+
+      # GitHub CLIとjqをインストール（PR情報取得用）
+      - name: Install GitHub CLI
+        run: sudo apt-get install -y gh jq
+
+      # developにマージ済みのPR一覧を取得
+      - name: Collect merged PR list
+        id: prs
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}  # ここにもトークンを設定
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prs=$(gh pr list \
+            --state merged \
+            --base develop \
+            --json title,number,url \
+            --jq '.[] | "- \(.title) (#\(.number)) \(.url)"')
+          echo "prs<<EOF" >> $GITHUB_OUTPUT
+          echo "$prs" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create release PR
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const { date, branch_name, prs } = process.env;
-            github.pulls.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `[Release] ${branch_name}`,
-              head: branch_name,
-              base: 'main',
-              body: `
-              # 概要
-              ${date} リリースブランチ
+      # 発行対象プロジェクト一覧を判定し環境変数に格納
+      - name: Determine build targets
+        id: determine-build
+        shell: pwsh
+        run: |
+          # プロジェクト定義リスト
+          $projects = @(
+            
+            @{ name = "A.csproj"; path = "src/A"; workflow = "A_stg_publish.yml" },
+            @{ name = "B.csproj"; path = "src/B"; workflow = "B_stg_publish.yml" },
+            @{ name = "C.csproj"; path = "src/C"; workflow = "C_stg_publish.yml" }
+          )
+          # developとの差分ファイルから対象プロジェクト抽出
+          $changedFiles = git diff --name-only origin/develop...HEAD
+          $targets = @()
+          foreach ($project in $projects) {
+            if ($changedFiles | Where-Object { $_ -like "$($project.path)/*" }) {
+              $targets += $project
+            }
+          }
+          # JSON化して環境変数に格納
+          $targetsJson = $targets | ConvertTo-Json -Compress
+          "BUILD_TARGETS=$targetsJson" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-              # 変更点
-              ${prs}
-              `
-            });
+      # PR本文生成（対象プロジェクト一覧＋workflow_dispatchボタン）
+      - name: Create PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $targets = $env:BUILD_TARGETS | ConvertFrom-Json
+          $projectList = ""
+          foreach ($t in $targets) {
+            $workflowUrl = "https://github.com/${{ github.repository }}/actions/workflows/$($t.workflow)"
+            $projectList += "* $($t.name) [実行ボタン]($workflowUrl)\n"
+          }
+          $title = "${{ steps.date.outputs.year_month }}リリース"
+          $body = "## 概要\n${{ steps.date.outputs.year_month }}リリース\n## チケットへのリンク\n* \nこのリリースに含まれる変更:\n\n${{ steps.prs.outputs.prs }}\n\n## 発行対象プロジェクト\n$projectList"
+          gh pr create \
+            --base main \
+            --head release/${{ steps.date.outputs.date }} \
+            --title "$title" \
+            --body "$body"
