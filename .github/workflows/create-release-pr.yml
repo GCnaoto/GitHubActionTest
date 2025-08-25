@@ -65,7 +65,7 @@ jobs:
             @{ name = "C.csproj"; path = "src/C"; workflow = "C_stg_publish.yml" }
           )
           # developとの差分ファイルから対象プロジェクト抽出
-          $changedFiles = git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD
+          $changedFiles = git diff --name-only origin/main...HEAD
           $targets = @()
           foreach ($project in $projects) {
             if ($changedFiles | Where-Object { $_ -match "$($project.path)/*" }) {
