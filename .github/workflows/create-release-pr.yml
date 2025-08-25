@@ -47,7 +47,6 @@ jobs:
           PREV_TAG=$(git tag --sort=-creatordate | grep '^release_' | tail -2 | head -1)
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
-      # 前回リリースタグからdevelopのHEADまでのマージPR一覧を取得
       # mainからリリースブランチまでのマージPR一覧を取得
       - name: Collect merged PR list from main to release branch
         id: prs
@@ -64,7 +63,6 @@ jobs:
         run: |
           # プロジェクト定義リスト
           $projects = @(
-            
             @{ name = "A.csproj"; path = "src/A"; workflow = "A_stg_publish.yml" },
             @{ name = "B.csproj"; path = "src/B"; workflow = "B_stg_publish.yml" },
             @{ name = "C.csproj"; path = "src/C"; workflow = "C_stg_publish.yml" }
@@ -97,7 +95,12 @@ jobs:
           # PR番号リストからURLリンク付きリストを生成
           $prList = ""
           foreach ($line in "${{ steps.prs.outputs.prs }}".Split("`n")) {
-            if ($line -match '- PR #(\d+)') {
+            if ($line -match 'Merge pull request #(\d+)') {
+              $prNum = $matches[1]
+              $prUrl = "https://github.com/${{ github.repository }}/pull/$prNum"
+              $prList += "* $prUrl`n"
+            }
+            elseif ($line -match '#(\d+)') {
               $prNum = $matches[1]
               $prUrl = "https://github.com/${{ github.repository }}/pull/$prNum"
               $prList += "* $prUrl`n"
