@@ -51,7 +51,9 @@ jobs:
       - name: Collect merged PR list from main to release branch
         id: prs
         run: |
-          prs=$(git log --merges --pretty=format:"%s" origin/main..release/${{ steps.date.outputs.date }} | grep -E 'Merge pull request' | sed -E 's/Merge pull request #([0-9]+) from .*/\1/')
+          prs=$(git log --merges --pretty=format:"%s" origin/main..origin/develop | grep -E 'Merge pull request' | sed -E 's/Merge pull request #([0-9]+) from .*/\1/')
+          echo "=== debug: collected PR numbers ==="
+          echo "$prs"
           echo "prs<<EOF" >> $GITHUB_OUTPUT
           echo "$prs" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
