@@ -39,7 +39,7 @@ jobs:
 
       - name: Fetch tags
         run: git fetch --tags
-        
+
       # 前回リリースタグを自動判別
       - name: Get previous release tag
         id: prev_tag
@@ -48,10 +48,11 @@ jobs:
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
       # 前回リリースタグからdevelopのHEADまでのマージPR一覧を取得
-      - name: Collect merged PR list between tags
+      # mainからリリースブランチまでのマージPR一覧を取得
+      - name: Collect merged PR list from main to release branch
         id: prs
         run: |
-          prs=$(git log --merges --pretty=format:"%s" ${{ steps.prev_tag.outputs.prev_tag }}..origin/develop | grep -E 'Merge pull request' | sed -E 's/Merge pull request #(\d+) from .*/- PR #\1/')
+          prs=$(git log --merges --pretty=format:"%s" origin/main..release/${{ steps.date.outputs.date }} | grep -E 'Merge pull request' | sed -E 's/Merge pull request #(\d+) from .*/- PR #\1/')
           echo "prs<<EOF" >> $GITHUB_OUTPUT
           echo "$prs" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -93,5 +94,14 @@ jobs:
             $projectList += "* $($t.name) [実行ボタン]($workflowUrl)`n"
           }
           $title = "${{ steps.date.outputs.year_month }}リリース"
-          $body = "## 概要`n${{ steps.date.outputs.year_month }}リリース`n## チケットへのリンク`n* `nこのリリースに含まれる変更:`n`n${{ steps.prs.outputs.prs }}`n`n## 発行対象プロジェクト`n$projectList"
+          # PR番号リストからURLリンク付きリストを生成
+          $prList = ""
+          foreach ($line in "${{ steps.prs.outputs.prs }}".Split("`n")) {
+            if ($line -match '- PR #(\d+)') {
+              $prNum = $matches[1]
+              $prUrl = "https://github.com/${{ github.repository }}/pull/$prNum"
+              $prList += "* $prUrl`n"
+            }
+          }
+          $body = "## 概要`n${{ steps.date.outputs.year_month }}リリース`n## チケットへのリンク`n* `nこのリリースに含まれる変更:`n`n$prList`n## 発行対象プロジェクト`n$projectList"
           gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body"
