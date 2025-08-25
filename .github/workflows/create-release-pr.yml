@@ -92,11 +92,13 @@ jobs:
             $projectList += "* $($t.name) [実行ボタン]($workflowUrl)`n"
           }
           $title = "${{ steps.date.outputs.year_month }}リリース"
-          # PR番号リストからURLリンク付きリストを生成
           $prList = ""
-          foreach ($prNum in "${{ steps.prs.outputs.prs }}".Split("`n")) {
-            $prUrl = "https://github.com/${{ github.repository }}/pull/$prNum"
-            $prList += "* $prUrl`n"
+          foreach ($line in ("${{ steps.prs.outputs.prs }}" -split "`n")) {
+            if ($line -match '#(\d+)') {
+              $prNum = $matches[1]
+              $prUrl = "https://github.com/${{ github.repository }}/pull/$prNum"
+              $prList += "$prUrl`n"
+            }
           }
           $body = "## 概要`n${{ steps.date.outputs.year_month }}リリース`n## チケットへのリンク`n* `nこのリリースに含まれる変更:`n`n$prList`n## 発行対象プロジェクト`n$projectList"
           gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body"
