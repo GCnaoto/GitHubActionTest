@@ -86,12 +86,8 @@ jobs:
           $projectList = ""
           foreach ($t in $targets) {
             $workflowUrl = "https://github.com/${{ github.repository }}/actions/workflows/$($t.workflow)"
-            $projectList += "* $($t.name) [実行ボタン]($workflowUrl)\n"
+            $projectList += "* $($t.name) [実行ボタン]($workflowUrl)`n"
           }
           $title = "${{ steps.date.outputs.year_month }}リリース"
-          $body = "## 概要\n${{ steps.date.outputs.year_month }}リリース\n## チケットへのリンク\n* \nこのリリースに含まれる変更:\n\n${{ steps.prs.outputs.prs }}\n\n## 発行対象プロジェクト\n$projectList"
-          gh pr create \
-            --base main \
-            --head release/${{ steps.date.outputs.date }} \
-            --title "$title" \
-            --body "$body"
+          $body = "## 概要`n${{ steps.date.outputs.year_month }}リリース`n## チケットへのリンク`n* `nこのリリースに含まれる変更:`n`n${{ steps.prs.outputs.prs }}`n`n## 発行対象プロジェクト`n$projectList"
+          gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body"
