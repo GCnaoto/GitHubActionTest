@@ -78,6 +78,7 @@ jobs:
 
       # PR本文生成（対象プロジェクト一覧＋workflow_dispatchボタン）
       - name: Create PR
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
