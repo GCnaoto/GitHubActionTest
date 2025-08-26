@@ -64,6 +64,7 @@ jobs:
             echo "changed files: $files"
             if echo "$files" | grep -q "^src/DB/"; then
               echo "DB配下の変更あり"
+              echo "コミットメッセージ: $(git log -1 --pretty=format:"%s" $sha)"
               pr=$(git log -1 --pretty=format:"%s" $sha | grep -oE 'Merge pull request #[0-9]+' | grep -oE '[0-9]+')
               echo "抽出PR番号: $pr"
               if [ -n "$pr" ]; then
