@@ -57,9 +57,9 @@ jobs:
         run: |
           # プロジェクト定義リスト
           $projects = @(
-            @{ name = "A.csproj"; path = "src/A"; workflow = "A_stg_publish.yml" },
-            @{ name = "B.csproj"; path = "src/B"; workflow = "B_stg_publish.yml" },
-            @{ name = "C.csproj"; path = "src/C"; workflow = "C_stg_publish.yml" }
+            @{ name = "Aアプリ"; path = "src/A"; workflow = "A_stg_publish.yml" },
+            @{ name = "Bアプリ"; path = "src/B"; workflow = "B_stg_publish.yml" },
+            @{ name = "Cアプリ"; path = "src/C"; workflow = "C_stg_publish.yml" }
           )
           # developとの差分ファイルから対象プロジェクト抽出
           $changedFiles = git diff --name-only origin/main HEAD
@@ -83,16 +83,16 @@ jobs:
           $projectList = ""
           foreach ($t in $targets) {
             $workflowUrl = "https://github.com/${{ github.repository }}/actions/workflows/$($t.workflow)"
-            $projectList += "* $($t.name) [実行ボタン]($workflowUrl)`n"
+            $projectList += "* $($t.name) [ステージング発行]($workflowUrl)`n"
           }
           $title = "${{ steps.date.outputs.year_month }}リリース"
           $prList = ""
           foreach ($line in ("${{ steps.prs.outputs.prs }}" -split "`n")) {
             if ($line -match '(\d+)') {
               $prNum = $matches[1]
-              $prUrl = "https://github.com/${{ github.repository }}/pull/$prNum"
+              $prUrl = "* https://github.com/${{ github.repository }}/pull/$prNum"
               $prList += "$prUrl`n"
             }
           }
-          $body = "## 概要`n${{ steps.date.outputs.year_month }}リリース`n## チケットへのリンク`n* `nこのリリースに含まれる変更:`n`n$prList`n## 発行対象プロジェクト`n$projectList"
+          $body = "## 概要`n${{ steps.date.outputs.year_month }}リリース`n## チケットへのリンク`n* `n## リリースに含まれる変更:`n`n$prList`n## 発行対象プロジェクト`n$projectList"
           gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body"
