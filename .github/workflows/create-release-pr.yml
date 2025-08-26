@@ -59,10 +59,12 @@ jobs:
         run: |
           dbprs=""
           for sha in $(git log --merges --pretty=format:"%H" origin/main..origin/develop); do
+            files=$(git show -m --name-only --pretty="" $sha)
+            echo -e "changed files:\n$files"
             # Database配下のファイル変更があるか判定
-            if git show --name-only --pretty="" $sha | grep -q "^src/DB/"; then
+            if echo "$files" | grep -q "^src/DB/"; then
               pr=$(git log -1 --pretty=format:"%s" $sha | grep -oE 'Merge pull request #[0-9]+' | grep -oE '[0-9]+')
-              if [ ! -z "$pr" ]; then
+              if [ -n "$pr" ]; then
                 dbprs="$dbprs * https://github.com/${{ github.repository }}/pull/$pr\n"
               fi
             fi
