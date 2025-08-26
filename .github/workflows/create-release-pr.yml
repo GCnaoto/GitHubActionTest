@@ -32,8 +32,13 @@ jobs:
           git fetch origin
           git checkout develop
           git pull
-          git checkout -b release/${{ steps.date.outputs.date }}
-          git push origin release/${{ steps.date.outputs.date }}
+          BRANCH_NAME="release/${{ steps.date.outputs.date }}"
+          if git ls-remote --exit-code --heads origin $BRANCH_NAME; then
+            echo "既にリリースブランチ $BRANCH_NAME が存在するため作成をスキップします。"
+          else
+            git checkout -b $BRANCH_NAME
+            git push origin $BRANCH_NAME
+          fi
 
       # GitHub CLIとjqをインストール
       - name: Install GitHub CLI
