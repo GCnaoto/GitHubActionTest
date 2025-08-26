@@ -10,6 +10,8 @@ jobs:
       # リポジトリをチェックアウト
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Gitユーザー情報を設定（PR作成やブランチ操作用）
       - name: Set up Git
@@ -36,14 +38,6 @@ jobs:
       # GitHub CLIとjqをインストール（PR情報取得用）
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh jq
-
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          
-      - name: Debug git log
-        run: |
-          git log --oneline --merges origin/main..origin/develop
 
       # mainからリリースブランチまでのマージPR一覧を取得
       - name: Collect merged PR list from main to release branch
@@ -94,7 +88,7 @@ jobs:
           $title = "${{ steps.date.outputs.year_month }}リリース"
           $prList = ""
           foreach ($line in ("${{ steps.prs.outputs.prs }}" -split "`n")) {
-            if ($line -match '#(\d+)') {
+            if ($line -match '(\d+)') {
               $prNum = $matches[1]
               $prUrl = "https://github.com/${{ github.repository }}/pull/$prNum"
               $prList += "$prUrl`n"
