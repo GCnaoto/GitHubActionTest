@@ -78,6 +78,9 @@ jobs:
                 echo "Merge pull requestを含まないコミットメッセージのためスキップ"
             fi
           done
+          echo "prs_database<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$dbprs" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       # 発行対象プロジェクト一覧を判定
       - name: Determine build targets
