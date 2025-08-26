@@ -7,13 +7,13 @@ jobs:
   create-release-pr:
     runs-on: ubuntu-latest
     steps:
-      # リポジトリをチェックアウト
+      # リポジトリを全履歴でチェックアウト
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Gitユーザー情報を設定（PR作成やブランチ操作用）
+      # Gitユーザー情報を設定
       - name: Set up Git
         run: |
           git config --global user.name "github-actions[bot]"
@@ -35,38 +35,41 @@ jobs:
           git checkout -b release/${{ steps.date.outputs.date }}
           git push origin release/${{ steps.date.outputs.date }}
 
-      # GitHub CLIとjqをインストール（PR情報取得用）
+      # GitHub CLIとjqをインストール
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh jq
 
-      # mainからリリースブランチまでのマージPR一覧を取得
-      - name: Collect merged PR list from main to release branch
+      # mainからdevelopまでのPR番号一覧を取得
+      - name: Collect merged PR numbers
         id: prs
         run: |
           prs=$(git log --merges --pretty=format:"%s" origin/main..origin/develop | grep -E 'Merge pull request' | sed -E 's/Merge pull request #([0-9]+) from .*/\1/')
-          echo "=== debug: collected PR numbers ==="
-          echo "$prs"
           echo "prs<<EOF" >> $GITHUB_OUTPUT
           echo "$prs" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      # 発行対象プロジェクト一覧を判定し環境変数に格納
+      # 発行対象プロジェクト一覧を判定
       - name: Determine build targets
         id: determine-build
         shell: pwsh
         run: |
           # プロジェクト定義リスト
           $projects = @(
-            @{ name = "Aアプリ"; path = "src/A"; workflow = "A_stg_publish.yml" },
-            @{ name = "Bアプリ"; path = "src/B"; workflow = "B_stg_publish.yml" },
-            @{ name = "Cアプリ"; path = "src/C"; workflow = "C_stg_publish.yml" }
+            @{ name = "Aアプリ"; path = @("src/A", "src/B"); workflow = "A_stg_publish.yml" },
+            # @{ name = "Bアプリ"; path = @("src/B"); workflow = "B_stg_publish.yml" },
+            @{ name = "Cアプリ"; path = @("src/C"); workflow = "C_stg_publish.yml" }
           )
           # developとの差分ファイルから対象プロジェクト抽出
           $changedFiles = git diff --name-only origin/main HEAD
           $targets = @()
           foreach ($project in $projects) {
-            if ($changedFiles | Where-Object { $_ -match "$($project.path)/*" }) {
-              $targets += $project
+            foreach ($p in $project.path) {
+              if ($changedFiles | Where-Object { $_ -match "$p/*" }) {
+                if (-not ($targets | Where-Object { $_.name -eq $project.name })) {
+                  $targets += $project
+                  break
+                }
+              }
             }
           }
           # JSON化して環境変数に格納
