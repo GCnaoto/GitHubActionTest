@@ -37,23 +37,24 @@ jobs:
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh jq
 
-      - name: Fetch tags
-        run: git fetch --tags
-
-      # 前回リリースタグを自動判別
-      - name: Get previous release tag
-        id: prev_tag
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Debug git log
         run: |
-          PREV_TAG=$(git tag --sort=-creatordate | grep '^release_' | tail -2 | head -1)
-          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          git log --oneline --merges origin/main..origin/develop
 
-      - name: Get merged PRs
+      # mainからリリースブランチまでのマージPR一覧を取得
+      - name: Collect merged PR list from main to release branch
         id: prs
         run: |
-          prs=$(gh pr list --state merged --base main --head develop --json number --jq '.[].number')
-          echo "prs=$prs" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ github.token }}
+          prs=$(git log --merges --pretty=format:"%s" origin/main..origin/develop | grep -E 'Merge pull request' | sed -E 's/Merge pull request #([0-9]+) from .*/\1/')
+          echo "=== debug: collected PR numbers ==="
+          echo "$prs"
+          echo "prs<<EOF" >> $GITHUB_OUTPUT
+          echo "$prs" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       # 発行対象プロジェクト一覧を判定し環境変数に格納
       - name: Determine build targets
