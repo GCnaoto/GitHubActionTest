@@ -52,6 +52,24 @@ jobs:
           echo "prs<<EOF" >> $GITHUB_OUTPUT
           echo "$prs" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+      
+      # mainからdevelopまでのPR番号一覧を取得（src/BusForecast.Database配下の変更があるPRのみ抽出）
+      - name: Collect merged PR numbers (Database only)
+        id: prs_database
+        run: |
+          dbprs=""
+          for sha in $(git log --merges --pretty=format:"%H" origin/main..origin/develop); do
+            # Database配下のファイル変更があるか判定
+            if git show --name-only --pretty="" $sha | grep -q "^src/DB/"; then
+              pr=$(git log -1 --pretty=format:"%s" $sha | grep -oE 'Merge pull request #[0-9]+' | grep -oE '[0-9]+')
+              if [ ! -z "$pr" ]; then
+                dbprs="$dbprs * https://github.com/${{ github.repository }}/pull/$pr\n"
+              fi
+            fi
+          done
+          echo "prs_database<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$dbprs" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       # 発行対象プロジェクト一覧を判定
       - name: Determine build targets
@@ -102,5 +120,6 @@ jobs:
               $prList += "$prUrl`n"
             }
           }
-          $body = "## 概要`n${{ steps.date.outputs.year_month }}リリース`n## チケットへのリンク`n* `n## リリースに含まれる変更:`n`n$prList`n## 発行対象プロジェクト`n$projectList"
+          $dbList = "${{ steps.prs_database.outputs.prs_database }}"
+          $body = "## 概要`n${{ steps.date.outputs.year_month }}リリース`n## チケットへのリンク`n* `n## リリースに含まれる変更:`n`n$prList`n## DB変更内容`n$dbList`n## 発行対象プロジェクト`n$projectList"
           gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body"
