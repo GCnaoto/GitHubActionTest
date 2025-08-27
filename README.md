@@ -1,2 +1,4 @@
 # GitHubActionTest
 Net Coreアクションテスト!
+
+PRブランチのグルーピングしてみる
