@@ -43,21 +43,12 @@ jobs:
       # GitHub CLIとjqをインストール
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh jq
-
-      # mainからdevelopまでのPR番号一覧を取得
-      - name: Collect merged PR numbers
-        id: prs
-        run: |
-          prs=$(git log --merges --pretty=format:"%s" origin/main..origin/develop | grep -E 'Merge pull request' | sed -E 's/Merge pull request #([0-9]+) from .*/\1/')
-          echo "prs<<EOF" >> $GITHUB_OUTPUT
-          echo "$prs" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
           
       # リリースノート生成（インラインでPR番号ごとにRedmineリンク付きでまとめる）
       - name: Generate release notes inline
         id: release_notes
         run: |
-          PR_LIST=${{ steps.prs.outputs.prs }}
+          PR_LIST=$(git log --merges --pretty=format:"%s" origin/main..origin/develop | grep -E 'Merge pull request' | sed -E 's/Merge pull request #([0-9]+) from .*/\1/')
           declare -A pr_groups
           declare -A pr_links
           others=""
