@@ -1,0 +1,160 @@
+name: Create Release Branch and PR
+
+on:
+  workflow_dispatch: # 手動実行のみ
+
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      # リポジトリを全履歴でチェックアウト
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Gitユーザー情報を設定
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      # 日付情報からリリースブランチ名・PRタイトル用文字列を生成
+      - name: Generate branch name
+        id: date
+        run: |
+          echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+          echo "year_month=$(date +'%Y年%m月')" >> $GITHUB_OUTPUT
+
+      # developからリリースブランチを作成してpush
+      - name: Create release branch
+        run: |
+          git fetch origin
+          git checkout develop
+          git pull
+          BRANCH_NAME="release/${{ steps.date.outputs.date }}"
+          if git ls-remote --exit-code --heads origin $BRANCH_NAME; then
+            echo "既にリリースブランチ $BRANCH_NAME が存在するため作成をスキップします。"
+          else
+            git checkout -b $BRANCH_NAME
+            git push origin $BRANCH_NAME
+          fi
+
+      # GitHub CLIとjqをインストール
+      - name: Install GitHub CLI
+        run: sudo apt-get install -y gh jq
+          
+      # リリースノート生成（インラインでPR番号ごとにRedmineリンク付きでまとめる）
+      - name: Generate release notes inline
+        id: release_notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_LIST=$(git log --merges --pretty=format:"%s" origin/main..origin/develop | grep -E 'Merge pull request' | sed -E 's/Merge pull request #([0-9]+) from .*/\1/')
+          declare -A pr_groups
+          declare -A pr_links
+          others=""
+          release_notes="## リリースに含まれる変更\n"
+          for pr in $PR_LIST; do
+            branch=$(gh pr view $pr --json headRefName -q .headRefName)
+            pr_link="https://github.com/${{ github.repository }}/pull/$pr"
+            if [[ "$branch" =~ redmine-([0-9]+) ]]; then
+              num="${BASH_REMATCH[1]}"
+              pr_groups["$num"]+="$pr "
+              pr_links["$pr"]="$pr_link"
+            else
+              others+="$pr "
+              pr_links["$pr"]="$pr_link"
+            fi
+          done
+          for num in $(printf "%s\n" "${!pr_groups[@]}" | sort -n); do
+            redmine_link="https://artisan.cloud.redmine.jp/issues/${num}"
+            release_notes+="\n### [redmine-$num]($redmine_link)\n"
+            for pr in ${pr_groups[$num]}; do
+              release_notes+="* ${pr_links[$pr]}\n"
+            done
+          done
+          if [ -n "$others" ]; then
+            release_notes+="\n### その他\n"
+            for pr in $others; do
+              release_notes+="* ${pr_links[$pr]}\n"
+            done
+          fi
+          echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$release_notes" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # mainからdevelopまでのPR番号一覧を取得（src/BusForecast.Database配下の変更があるPRのみ抽出）
+      - name: Collect merged PR numbers (Database only)
+        id: prs_database
+        run: |
+          dbprs=""
+          for sha in $(git log --merges --pretty=format:"%H" origin/main..origin/develop); do
+            files=$(git show -m --name-only --pretty="" $sha 2>/dev/null) || true
+            echo "changed files: $files"
+            msg=$(git log -1 --pretty=format:"%s" $sha)
+            if echo "$msg" | grep -q "Merge pull request"; then
+              if echo "$files" | grep -q "^src/DB/"; then
+                echo "コミットメッセージ: $msg"
+                pr=$(echo "$msg" | grep -oE 'Merge pull request #[0-9]+' | grep -oE '[0-9]+')
+                echo "抽出PR番号: $pr"
+                if [ -n "$pr" ]; then
+                  dbprs="$dbprs* https://github.com/${{ github.repository }}/pull/$pr\n"
+                  echo "URL追加: https://github.com/${{ github.repository }}/pull/$pr"
+                fi
+              else
+                echo "DB配下の変更なし"
+              fi
+            else
+                echo "Merge pull requestを含まないコミットメッセージのためスキップ"
+            fi
+          done
+          echo "prs_database<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$dbprs" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # 発行対象プロジェクト一覧を判定
+      - name: Determine build targets
+        id: determine-build
+        shell: pwsh
+        run: |
+          # プロジェクト定義リスト
+          $projects = @(
+            @{ name = "Aアプリ"; path = @("src/A", "src/B"); workflow = "A_stg_publish.yml" },
+            # @{ name = "Bアプリ"; path = @("src/B"); workflow = "B_stg_publish.yml" },
+            @{ name = "Cアプリ"; path = @("src/C"); workflow = "C_stg_publish.yml" }
+          )
+          # developとの差分ファイルから対象プロジェクト抽出
+          $changedFiles = git diff --name-only origin/main HEAD
+          $targets = @()
+          foreach ($project in $projects) {
+            foreach ($p in $project.path) {
+              if ($changedFiles | Where-Object { $_ -match "$p/*" }) {
+                if (-not ($targets | Where-Object { $_.name -eq $project.name })) {
+                  $targets += $project
+                  break
+                }
+              }
+            }
+          }
+          # JSON化して環境変数に格納
+          $targetsJson = $targets | ConvertTo-Json -Compress
+          "BUILD_TARGETS=$targetsJson" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # PR本文生成（対象プロジェクト一覧＋workflow_dispatchボタン）
+      - name: Create PR
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $targets = $env:BUILD_TARGETS | ConvertFrom-Json
+          $projectList = ""
+          foreach ($t in $targets) {
+            $workflowUrl = "https://github.com/${{ github.repository }}/actions/workflows/$($t.workflow)"
+            $projectList += "* $($t.name) [ステージング発行]($workflowUrl)`n"
+          }
+          $title = "${{ steps.date.outputs.year_month }}リリース"
+          $dbList = "${{ steps.prs_database.outputs.prs_database }}"
+          $releaseNotes = "${{ steps.release_notes.outputs.release_notes }}"
+          $body = "## 概要`n${{ steps.date.outputs.year_month }}リリース`n## チケットへのリンク`n* `n$releaseNotes`n## DB変更内容`n$dbList`n## 発行対象プロジェクト`n$projectList"
+          gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body"
