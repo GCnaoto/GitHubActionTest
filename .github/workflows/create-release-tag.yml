@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main  # リリースブランチマージ時に実行
-  workflow_dispatch: # 手動実行のみ
 
 jobs:
   create-release:
@@ -41,3 +40,10 @@ jobs:
           MONTH=$(echo "${{ steps.date.outputs.date }}" | cut -c5-6)
           TITLE="${YEAR}年${MONTH}月リリース"
           gh release create "${{ steps.tag.outputs.tag }}" --title "$TITLE" --notes "" --draft
+
+       # mainブランチをdevelopブランチにマージするPRを作成
+      - name: Create PR from main to develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create --base develop --head main --title "main ブランチを develop ブランチにマージする" --body "## 概要\nmain ブランチを develop ブランチにマージするPRです。"
