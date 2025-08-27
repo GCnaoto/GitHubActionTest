@@ -1,0 +1,43 @@
+name: Create Release Tag and GitHub Release
+
+on:
+  push:
+    branches:
+      - main  # リリースブランチマージ時に実行
+  workflow_dispatch: # 手動実行のみ
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      # リポジトリを全履歴でチェックアウト
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 今日の日付（YYYYMMDD）を取得し、後続ステップで使えるように出力
+      - name: Get release date (today)
+        id: date
+        run: |
+          DATE=$(date +'%Y%m%d')
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+
+      # mainの最新コミットに「release_YYYYMMDD」形式でタグを作成＆push
+      - name: Create tag on main HEAD
+        id: tag
+        run: |
+          TAG_NAME="release_${{ steps.date.outputs.date }}"
+          git tag $TAG_NAME
+          git push origin $TAG_NAME
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      # ドラフト状態でGitHubリリースを作成（タイトルは「YYYY年MM月リリース」、ノートは空）
+      - name: Create GitHub Release (draft)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          YEAR=$(echo "${{ steps.date.outputs.date }}" | cut -c1-4)
+          MONTH=$(echo "${{ steps.date.outputs.date }}" | cut -c5-6)
+          TITLE="${YEAR}年${MONTH}月リリース"
+          gh release create "${{ steps.tag.outputs.tag }}" --title "$TITLE" --notes "" --draft
