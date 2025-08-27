@@ -46,4 +46,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr create --base develop --head main --title "main ブランチを develop ブランチにマージする" --body "## 概要`n main ブランチを develop ブランチにマージするPRです。"
+          BODY="## 概要`n main ブランチを develop ブランチにマージするPRです。"
+          gh pr create --base develop --head main --title "main ブランチを develop ブランチにマージする" --body "$BODY"
