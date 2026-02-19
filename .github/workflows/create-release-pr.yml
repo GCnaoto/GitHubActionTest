@@ -176,7 +176,7 @@ jobs:
 
           # release_notesステップで収集したラベルを利用
           $allLabels = @()
-          $labelsRaw = @"${{ steps.release_notes.outputs.pr_labels }}"@
+          $labelsRaw = "${{ steps.release_notes.outputs.pr_labels }}"
           if ($labelsRaw) {
             $allLabels = $labelsRaw -split "`n" | Where-Object { $_ -ne "" } | Select-Object -Unique
           }
