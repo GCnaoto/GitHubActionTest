@@ -181,8 +181,9 @@ jobs:
             $allLabels = $labelsRaw -split "`n" | Where-Object { $_ -ne "" } | Select-Object -Unique
           }
           $labelArgs = if ($allLabels.Count -gt 0) { '--label "' + ($allLabels -join '" --label "') + '"' } else { '' }
+          Write-Host "labelArgs: $labelArgs"
 
           # PR作成
-          $cmd = "gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" --label "$labelArgs"
+          $cmd = "gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" "$labelArgs"
           Write-Host "PR作成コマンド: $cmd"
           Invoke-Expression $cmd
