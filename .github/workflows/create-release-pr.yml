@@ -61,11 +61,16 @@ jobs:
             pr_link="https://github.com/${{ github.repository }}/pull/$pr"
             # ラベル取得
             labels=$(gh pr view $pr --json labels -q '.labels[].name' 2>/dev/null)
+            label_str=""
             if [ -n "$labels" ]; then
               while IFS= read -r label; do
                 [ -n "$label" ] && label_set["$label"]=1
               done <<< "$labels"
+              # ラベルをカンマ区切りで1行にまとめる
+              label_str="$(echo "$labels" | paste -sd "," -)"
             fi
+            # PRごとのラベル情報を保存
+            pr_labels["$pr"]="$label_str"
             if [[ "$branch" =~ redmine-([0-9]+) ]]; then
               num="${BASH_REMATCH[1]}"
               pr_groups["$num"]+="$pr "
@@ -79,13 +84,21 @@ jobs:
             redmine_link="https://artisan.cloud.redmine.jp/issues/${num}"
             release_notes+="\n### [redmine-$num]($redmine_link)\n"
             for pr in ${pr_groups[$num]}; do
-              release_notes+="* ${pr_links[$pr]}\n"
+              label_info=""
+              if [ -n "${pr_labels[$pr]}" ]; then
+                label_info="（labels: ${pr_labels[$pr]}）"
+              fi
+              release_notes+="* ${pr_links[$pr]} $label_info\n"
             done
           done
           if [ -n "$others" ]; then
             release_notes+="\n### その他\n"
             for pr in $others; do
-              release_notes+="* ${pr_links[$pr]}\n"
+              label_info=""
+              if [ -n "${pr_labels[$pr]}" ]; then
+                label_info="（labels: ${pr_labels[$pr]}）"
+              fi
+              release_notes+="* ${pr_links[$pr]} $label_info\n"
             done
           fi
           # ラベル一覧を改行区切りで出力
