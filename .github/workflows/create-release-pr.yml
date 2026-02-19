@@ -180,7 +180,7 @@ jobs:
           if ($labelsRaw) {
             $allLabels = $labelsRaw -split "`n" | Where-Object { $_ -ne "" } | Select-Object -Unique
           }
-          $labelArgs = if ($allLabels.Count -gt 0) { ($allLabels | ForEach-Object { '-l ' + $_ }) -join ' ' } else { '' }
+            $labelArgs = if ($allLabels.Count -gt 0) { ($allLabels | ForEach-Object { '-l $_' }) -join "`n" } else { '' }
           Write-Host "labelArgs: $labelArgs"
 
           # PR作成
