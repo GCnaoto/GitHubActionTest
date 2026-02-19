@@ -180,12 +180,12 @@ jobs:
           if ($labelsRaw) {
             $allLabels = $labelsRaw -split "`n" | Where-Object { $_ -ne "" } | Select-Object -Unique
           }
-            $labelArgs = if ($allLabels.Count -gt 0) { ($allLabels | ForEach-Object { '-l $_' }) -join "`n" } else { '' }
+          $labelArgs = if ($allLabels.Count -gt 0) { '-l ' + ($allLabels -join '\n -l ') } else { '' }
           Write-Host "labelArgs: $labelArgs"
 
           # PR作成
-          $cmd = "gh pr create --base main --head release/${{ steps.date.outputs.date }} --title $title --body $body $labelArgs"
-          Write-Host "PR作成コマンド: $cmd"
+          # $cmd = "gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" "$labelArgs"
+          # Write-Host "PR作成コマンド: $cmd"
           gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" "$labelArgs"
           
           # Invoke-Expression $cmd
