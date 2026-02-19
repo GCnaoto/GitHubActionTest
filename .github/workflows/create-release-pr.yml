@@ -48,7 +48,7 @@ jobs:
       - name: Generate release notes inline
         id: release_notes
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           PR_LIST=$(git log --merges --pretty=format:"%s" origin/main..origin/develop | grep -E 'Merge pull request' | sed -E 's/Merge pull request #([0-9]+) from .*/\1/')
           declare -A pr_groups
@@ -145,7 +145,7 @@ jobs:
       - name: Create PR
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           $targets = $env:BUILD_TARGETS | ConvertFrom-Json
           $projectList = ""
