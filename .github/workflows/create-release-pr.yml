@@ -44,7 +44,7 @@ jobs:
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh jq
           
-      # リリースノート生成（インラインでPR番号ごとにRedmineリンク付きでまとめる）
+      # リリースノート生成（インラインでPR番号ごとにRedmineリンク付きでまとめる＋ラベル一覧も出力）
       - name: Generate release notes inline
         id: release_notes
         env:
@@ -157,7 +157,7 @@ jobs:
           $targetsJson = $targets | ConvertTo-Json -Compress
           "BUILD_TARGETS=$targetsJson" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      # PR本文生成（対象プロジェクト一覧＋workflow_dispatchボタン）
+      # PR本文生成（対象プロジェクト一覧＋workflow_dispatchボタン＋含まれるPRのラベルをすべて付与）
       - name: Create PR
         shell: pwsh
         env:
@@ -183,6 +183,6 @@ jobs:
           $labelArgs = if ($allLabels.Count -gt 0) { '--label "' + ($allLabels -join '" --label "') + '"' } else { '' }
 
           # PR作成
-          $cmd = "gh pr create --base main --head release/${{ steps.date.outputs.date }} --title \"$title\" --body \"$body\" $labelArgs"
+          $cmd = "gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" "$labelArgs"
           Write-Host "PR作成コマンド: $cmd"
           Invoke-Expression $cmd
