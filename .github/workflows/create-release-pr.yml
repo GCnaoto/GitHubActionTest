@@ -44,20 +44,33 @@ jobs:
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh jq
           
-      # リリースノート生成（インラインでPR番号ごとにRedmineリンク付きでまとめる）
+      # リリースノート生成（インラインでPR番号ごとにRedmineリンク付きでまとめる＋ラベル一覧も出力）
       - name: Generate release notes inline
         id: release_notes
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           PR_LIST=$(git log --merges --pretty=format:"%s" origin/main..origin/develop | grep -E 'Merge pull request' | sed -E 's/Merge pull request #([0-9]+) from .*/\1/')
           declare -A pr_groups
           declare -A pr_links
+          declare -A label_set
           others=""
           release_notes="## リリースに含まれる変更\n"
           for pr in $PR_LIST; do
             branch=$(gh pr view $pr --json headRefName -q .headRefName)
             pr_link="https://github.com/${{ github.repository }}/pull/$pr"
+            # ラベル取得
+            labels=$(gh pr view $pr --json labels -q '.labels[].name' 2>/dev/null)
+            label_str=""
+            if [ -n "$labels" ]; then
+              while IFS= read -r label; do
+                [ -n "$label" ] && label_set["$label"]=1
+              done <<< "$labels"
+              # ラベルをカンマ区切りで1行にまとめる
+              label_str="$(echo "$labels" | paste -sd "," -)"
+            fi
+            # PRごとのラベル情報を保存
+            pr_labels["$pr"]="$label_str"
             if [[ "$branch" =~ redmine-([0-9]+) ]]; then
               num="${BASH_REMATCH[1]}"
               pr_groups["$num"]+="$pr "
@@ -71,17 +84,33 @@ jobs:
             redmine_link="https://artisan.cloud.redmine.jp/issues/${num}"
             release_notes+="\n### [redmine-$num]($redmine_link)\n"
             for pr in ${pr_groups[$num]}; do
-              release_notes+="* ${pr_links[$pr]}\n"
+              label_info=""
+              if [ -n "${pr_labels[$pr]}" ]; then
+                label_info="（labels: ${pr_labels[$pr]}）"
+              fi
+              release_notes+="* ${pr_links[$pr]} $label_info\n"
             done
           done
           if [ -n "$others" ]; then
             release_notes+="\n### その他\n"
             for pr in $others; do
-              release_notes+="* ${pr_links[$pr]}\n"
+              label_info=""
+              if [ -n "${pr_labels[$pr]}" ]; then
+                label_info="（labels: ${pr_labels[$pr]}）"
+              fi
+              release_notes+="* ${pr_links[$pr]} $label_info\n"
             done
           fi
+          # ラベル一覧を改行区切りで出力
+          all_labels=""
+          for label in "${!label_set[@]}"; do
+            all_labels+="$label\n"
+          done
           echo "release_notes<<EOF" >> $GITHUB_OUTPUT
           echo -e "$release_notes" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "pr_labels<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$all_labels" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       # mainからdevelopまでのPR番号一覧を取得（src/BusForecast.Database配下の変更があるPRのみ抽出）
@@ -141,11 +170,11 @@ jobs:
           $targetsJson = $targets | ConvertTo-Json -Compress
           "BUILD_TARGETS=$targetsJson" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      # PR本文生成（対象プロジェクト一覧＋workflow_dispatchボタン）
+      # PR本文生成（対象プロジェクト一覧＋workflow_dispatchボタン＋含まれるPRのラベルをすべて付与）
       - name: Create PR
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           $targets = $env:BUILD_TARGETS | ConvertFrom-Json
           $projectList = ""
@@ -157,4 +186,20 @@ jobs:
           $dbList = "${{ steps.prs_database.outputs.prs_database }}"
           $releaseNotes = "${{ steps.release_notes.outputs.release_notes }}"
           $body = "## 概要`n${{ steps.date.outputs.year_month }}リリース`n## チケットへのリンク`n* `n$releaseNotes`n## DB変更内容`n$dbList`n## 発行対象プロジェクト`n$projectList"
-          gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body"
+
+          # release_notesステップで収集したラベルを利用
+          $allLabels = @()
+          $labelsRaw = "${{ steps.release_notes.outputs.pr_labels }}"
+          if ($labelsRaw) {
+            $allLabels = $labelsRaw -split "`n" | Where-Object { $_ -ne "" } | Select-Object -Unique
+          }
+          $labels = if ($allLabels.Count -gt 0) { $allLabels -join ',' } else { '' }
+          Write-Host "labelArgs: $labelArgs"
+
+          # PR作成
+          # $cmd = "gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" "${labelArgs[@]}"
+          # Write-Host "PR作成コマンド: $cmd"
+          # gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" "${labelArgs[@]}"
+          gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" --label $labels
+          
+          # Invoke-Expression $cmd
