@@ -183,6 +183,6 @@ jobs:
           $labelArgs = if ($allLabels.Count -gt 0) { '--label "' + ($allLabels -join '" --label "') + '"' } else { '' }
 
           # PR作成
-          $cmd = "gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" "$labelArgs"
+          $cmd = "gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" --label "$labelArgs"
           Write-Host "PR作成コマンド: $cmd"
           Invoke-Expression $cmd
