@@ -184,6 +184,8 @@ jobs:
           Write-Host "labelArgs: $labelArgs"
 
           # PR作成
-          $cmd = "gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" "$labelArgs"
-          Write-Host "PR作成コマンド: $cmd"
+          # $cmd = "gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" "$labelArgs"
+          # Write-Host "PR作成コマンド: $cmd"
+          gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" "$labelArgs"
+          
           # Invoke-Expression $cmd
