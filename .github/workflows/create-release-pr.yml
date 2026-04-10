@@ -163,7 +163,7 @@ jobs:
             done
             echo "prs_database<<EOF" >> $GITHUB_OUTPUT
             echo -e "$dbprs" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTP
+            echo "EOF" >> $GITHUB_OUTPUT
             # テーブルごとのINSERT文を出力（環境変数にセット）
             inserts_by_table_str=""
             for tbl in "${!inserts_by_table[@]}"; do
