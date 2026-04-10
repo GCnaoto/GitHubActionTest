@@ -140,14 +140,6 @@ jobs:
                     for f in $files; do
                       if [[ "$f" =~ ^src/DB/.*\.sql$ ]]; then
                         echo "→ SQLファイルの可能性があります: $f"
-                        git show $sha -- $f | grep '^+' | grep -E 'INSERT INTO|--INSERT INTO' | sed 's/^+//' | while read -r line; do
-                          echo "Processing line: $line"
-                          tbl=$(echo "$line" | sed -E 's/.*INSERT INTO \[[^]]+\]\.\[([^]]+)\].*/\1/')
-                          if [ -n "$tbl" ]; then
-                            echo "→ テーブル名抽出成功: $tbl"
-                            inserts_by_table["$tbl"]+="${line#--}"$'\n'
-                          fi
-                        done
                         # DataFactory連携テーブルの変更有無を判定
                         for tblname in "${datafactory_tables[@]}"; do
                           if [[ "$f" =~ $tblname\.sql$ ]]; then
@@ -164,6 +156,18 @@ jobs:
               else
                   echo "Merge pull requestを含まないコミットメッセージのためスキップ"
               fi
+            done
+            # DB配下のSQLファイルのINSERT文をテーブルごとに抽出
+            for f in $(git diff origin/main..origin/develop --name-only -- src/DB/*.sql); do
+              echo "SQLファイルの変更検出: $f"
+              git diff origin/main..origin/develop -- $f | grep '^+' | grep -E 'INSERT INTO|--INSERT INTO' | sed 's/^+//' | while read -r line; do
+                echo "INSERT文候補: $line"
+                tbl=$(echo "$line" | sed -E 's/.*INSERT INTO \[[^]]+\]\.\[([^]]+)\].*/\1/')
+                if [ -n "$tbl" ]; then
+                  echo "テーブル名抽出: $tbl"
+                  inserts_by_table["$tbl"]="${inserts_by_table[$tbl]}${line#--}"$'\\n'
+                fi
+              done
             done
             echo "prs_database<<EOF" >> $GITHUB_OUTPUT
             echo -e "$dbprs" >> $GITHUB_OUTPUT
