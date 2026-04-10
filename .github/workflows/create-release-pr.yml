@@ -114,33 +114,66 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       # mainからdevelopまでのPR番号一覧を取得（src/BusForecast.Database配下の変更があるPRのみ抽出）
+# mainからreleaseまでのPR番号一覧を取得（src/BusForecast.Database配下の変更があるPRのみ抽出）
       - name: Collect merged PR numbers (Database only)
         id: prs_database
         run: |
-          dbprs=""
-          for sha in $(git log --merges --pretty=format:"%H" origin/main..origin/develop); do
-            files=$(git show -m --name-only --pretty="" $sha 2>/dev/null) || true
-            echo "changed files: $files"
-            msg=$(git log -1 --pretty=format:"%s" $sha)
-            if echo "$msg" | grep -q "Merge pull request"; then
-              if echo "$files" | grep -q "^src/DB/"; then
-                echo "コミットメッセージ: $msg"
-                pr=$(echo "$msg" | grep -oE 'Merge pull request #[0-9]+' | grep -oE '[0-9]+')
-                echo "抽出PR番号: $pr"
-                if [ -n "$pr" ]; then
-                  dbprs="$dbprs* https://github.com/${{ github.repository }}/pull/$pr\n"
-                  echo "URL追加: https://github.com/${{ github.repository }}/pull/$pr"
+            dbprs=""
+            # テーブルごとのINSERT文を連想配列で格納
+            declare -A inserts_by_table
+            # DataFactory連携対象テーブル
+            datafactory_tables=(Tbl_XXX)
+            datafactory_changed=0
+            for sha in $(git log --merges --pretty=format:"%H" origin/main..origin/release); do
+              files=$(git show -m --name-only --pretty="" $sha 2>/dev/null) || true
+              echo "changed files: $files"
+              msg=$(git log -1 --pretty=format:"%s" $sha)
+              if echo "$msg" | grep -q "Merge pull request"; then
+                if echo "$files" | grep -q "^src/DB/"; then
+                  echo "コミットメッセージ: $msg"
+                  pr=$(echo "$msg" | grep -oE 'Merge pull request #[0-9]+' | grep -oE '[0-9]+')
+                  echo "抽出PR番号: $pr"
+                  if [ -n "$pr" ]; then
+                    dbprs="$dbprs* https://github.com/${{ github.repository }}/pull/$pr\n"
+                    echo "URL追加: https://github.com/${{ github.repository }}/pull/$pr"
+                    # DB配下のSQLファイルのINSERT文をテーブルごとに抽出
+                    for f in $files; do
+                      if [[ "$f" =~ ^src/DB/.*\\.sql$ ]]; then
+                        git show $sha -- $f | grep '^+' | grep -E 'INSERT INTO|--INSERT INTO' | sed 's/^+//' | while read -r line; do
+                           tbl=$(echo "$line" | sed -E 's/.*INSERT INTO \[[^]]+\]\.\[([^]]+)\].*/\1/')
+                           if [ -n "$tbl" ]; then
+                             inserts_by_table["$tbl"]+="${line#--}"$'\n'
+                           fi
+                        done
+                        # DataFactory連携テーブルの変更有無を判定
+                        for tblname in "${datafactory_tables[@]}"; do
+                          if [[ "$f" =~ $tblname\.sql$ ]]; then
+                            datafactory_changed=1
+                          fi
+                        done
+                      fi
+                    done
+                  fi
+                else
+                  echo "DB配下の変更なし"
                 fi
               else
-                echo "DB配下の変更なし"
+                  echo "Merge pull requestを含まないコミットメッセージのためスキップ"
               fi
-            else
-                echo "Merge pull requestを含まないコミットメッセージのためスキップ"
-            fi
-          done
-          echo "prs_database<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$dbprs" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+            done
+            echo "prs_database<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$dbprs" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTP
+            # テーブルごとのINSERT文を出力（環境変数にセット）
+            inserts_by_table_str=""
+            for tbl in "${!inserts_by_table[@]}"; do
+              inserts_by_table_str+="[$tbl]\n${inserts_by_table[$tbl]}\n"
+            done
+            echo "db_inserts_by_table<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$inserts_by_table_str" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTP
+            # DataFactory連携テーブル変更有無を出力
+            echo "datafactory_changed=$datafactory_changed" >> $GITHUB_OUTPUT
 
       # 発行対象プロジェクト一覧を判定
       - name: Determine build targets
@@ -203,3 +236,70 @@ jobs:
           gh pr create --base main --head release/${{ steps.date.outputs.date }} --title "$title" --body "$body" --label $labels
           
           # Invoke-Expression $cmd
+
+      - name: Create Release Work Issue
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          $targets = $env:BUILD_TARGETS | ConvertFrom-Json
+          $deployList = ""
+          $datafactoryChanged = "${{ steps.prs_database.outputs.datafactory_changed }}"
+          $dbInserts = "${{ steps.prs_database.outputs.db_inserts_by_table }}"
+          $deployTargets = @(
+            @{ name = "Aアプリ"; workflow = "A_stg_publish.yml" },
+            @{ name = "Bアプリ"; workflow = "B_stg_publish.yml" },
+            @{ name = "Cアプリ"; workflow = "C_stg_publish.yml" }
+          )
+          foreach ($d in $deployTargets) {
+            foreach ($t in $targets) {
+              if ($t.workflow -eq $d.workflow) {
+                $deployList += "- [ ] $($d.name)`n"
+                break
+              }
+            }
+          }
+          $dbChanged = if ("${{ steps.prs_database.outputs.prs_database }}" -ne "") { "- [ ] データベース定義を変更" } else { "" }
+          $issueTitle = "${{ steps.date.outputs.year_month }}リリース作業"
+          $issueBody = @"
+          
+          ## 事前に本番環境で行う作業
+          $dbChanged
+
+          - データパッチ
+            $(if ($dbInserts -ne "") { $dbInserts } else { "  - なし" })
+          - Azure Data Factory の設定変更
+            - $(if ($datafactoryChanged -eq "1") { "あり" } else { "なし" })
+          
+          ## リリース時間前に行う作業
+          1. ビッグテーブル更新
+             - なし
+               - を流すのを忘れないこと  
+                 ※Alter Table をする時には不要  
+          
+          2. ステージング環境にデプロイ
+          $deployList
+          
+          ## リリース
+          1. DB 定義の更新、または、データパッチ ※「事前に本番環境で行う作業」でやってないならここでやる
+            - ※確認
+          
+          2. アプリケーション(環境)変数の設定
+            - ※
+          3. スワップ
+          $deployList
+          
+          4. 動作確認
+            - [ ] 動作
+          5. に定義変更があるときには Azure DataFactory にも反映
+            - $(if ($datafactoryChanged -eq "1") { "[ ] あり" } else { "なし" })
+          
+          ## リリース後に行う作業
+          * [ ] の Git リポジトリ整理
+            - `main` ブランチから `develop` にマージするプルリクをマージ
+          * [ ] Teamsに完了報告をする
+          * [ ] ステージング環境に `develop` ブランチをデプロイ
+          $deployList
+          * [ ] 本Issueをクローズする
+          "@
+              gh issue create --title "$issueTitle" --body "$issueBody"
