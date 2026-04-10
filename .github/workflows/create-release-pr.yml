@@ -124,7 +124,7 @@ jobs:
             # DataFactory連携対象テーブル
             datafactory_tables=(Tbl_XXX)
             datafactory_changed=0
-            for sha in $(git log --merges --pretty=format:"%H" origin/main..origin/release); do
+            for sha in $(git log --merges --pretty=format:"%H" origin/main..origin/develop); do
               files=$(git show -m --name-only --pretty="" $sha 2>/dev/null) || true
               echo "changed files: $files"
               msg=$(git log -1 --pretty=format:"%s" $sha)
