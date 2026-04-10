@@ -171,7 +171,7 @@ jobs:
             done
             echo "db_inserts_by_table<<EOF" >> $GITHUB_OUTPUT
             echo -e "$inserts_by_table_str" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTP
+            echo "EOF" >> $GITHUB_OUTPUT
             # DataFactory連携テーブル変更有無を出力
             echo "datafactory_changed=$datafactory_changed" >> $GITHUB_OUTPUT
 
