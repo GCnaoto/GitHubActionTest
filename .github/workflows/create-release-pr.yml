@@ -160,14 +160,14 @@ jobs:
             # DB配下のSQLファイルのINSERT文をテーブルごとに抽出
             for f in $(git diff origin/main..origin/develop --name-only -- src/DB/*.sql); do
               echo "SQLファイルの変更検出: $f"
-              git diff origin/main..origin/develop -- $f | grep '^+' | grep -E 'INSERT INTO|--INSERT INTO' | sed 's/^+//' | while read -r line; do
+              while read -r line; do 
                 echo "INSERT文候補: $line"
                 tbl=$(echo "$line" | sed -E 's/.*INSERT INTO (\[[^]]+\]\.|)(\[[^]]+\]|[A-Za-z0-9_]+).*/\2/' | sed 's/\[\([^]]*\)\]/\1/')
                 if [ -n "$tbl" ]; then
                   echo "テーブル名抽出: $tbl"
                   inserts_by_table["$tbl"]="${inserts_by_table[$tbl]}${line#--}"$'\\n'
                 fi
-              done
+              done < <(git diff origin/main..origin/develop -- $f | grep '^+' | grep -E 'INSERT INTO|--INSERT INTO' | sed 's/^+//')
             done
             echo "prs_database<<EOF" >> $GITHUB_OUTPUT
             echo -e "$dbprs" >> $GITHUB_OUTPUT
